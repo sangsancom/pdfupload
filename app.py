@@ -7,12 +7,12 @@ import tempfile
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 
-# 업로드 폴더 생성
+# 업로드 폴더 없으면 생성
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 @app.route('/')
 def index():
-    return render_template('index.html')  # templates 폴더 필요!
+    return render_template('index.html')  # templates/index.html 필요!
 
 @app.route('/convert', methods=['POST'])
 def convert_pdf_to_png():
@@ -23,23 +23,35 @@ def convert_pdf_to_png():
     if file.filename == '':
         return "No selected file", 400
 
+    # 파일 저장
     filename = secure_filename(file.filename)
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(filepath)
 
+    tmp_path = None
+
     try:
-        # PDF → 이미지 변환 (첫 페이지만 PNG로 저장)
+        # PDF → PNG 변환
         doc = fitz.open(filepath)
         page = doc.load_page(0)  # 첫 페이지
-        pix = page.get_pixmap(dpi=150)  # 해상도 설정
+        pix = page.get_pixmap(dpi=150)
 
         # 임시 PNG 파일 생성
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            pix.save(tmp.name)
-            return send_file(tmp.name, mimetype='image/png', as_attachment=True, download_name='converted.png')
+            tmp_path = tmp.name
+            pix.save(tmp_path)
+
+        doc.close()  # 반드시 닫기
+
+        return send_file(tmp_path, mimetype='image/png', as_attachment=True, download_name='converted.png')
+
     finally:
-        # 원본 PDF 정리
-        os.remove(filepath)
+        # PDF 파일 삭제 (닫힌 후!)
+        try:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        except Exception as e:
+            print(f"PDF 삭제 실패: {e}")
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=True)

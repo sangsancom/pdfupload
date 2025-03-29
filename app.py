@@ -1,52 +1,59 @@
 from flask import Flask, request, send_file, render_template
-import fitz  # PyMuPDF
+from werkzeug.utils import secure_filename
 import os
+import fitz  # PyMuPDF
 import tempfile
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
+
+# 업로드 폴더 생성 (없으면)
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html')  # templates/index.html 필요
 
 @app.route('/convert', methods=['POST'])
-def convert():
+def convert_pdf_to_png():
     if 'pdfFile' not in request.files:
-        return "No file uploaded", 400
+        return "PDF 파일이 전송되지 않았습니다.", 400
 
     file = request.files['pdfFile']
     if file.filename == '':
-        return "Empty filename", 400
+        return "파일이 선택되지 않았습니다.", 400
+
+    # PDF 저장 경로 생성
+    filename = secure_filename(file.filename)
+    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(pdf_path)
 
     try:
-        # 임시 PDF 저장
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_pdf:
-            file.save(tmp_pdf)
-            tmp_pdf_path = tmp_pdf.name
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # 출력 이미지 경로
+            img_path = os.path.join(tmpdir, 'converted.png')
 
-        # 임시 PNG 저장
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_png:
-            tmp_png_path = tmp_png.name
+            # PDF → PNG 변환 (첫 페이지)
+            doc = fitz.open(pdf_path)
+            page = doc.load_page(0)
+            pix = page.get_pixmap(dpi=150)
+            pix.save(img_path)
+            doc.close()
 
-        # PDF → PNG 변환
-        doc = fitz.open(tmp_pdf_path)
-        page = doc.load_page(0)
-        pix = page.get_pixmap(dpi=150)
-        pix.save(tmp_png_path)
-        doc.close()
-
-        return send_file(tmp_png_path, mimetype='image/png', as_attachment=True, download_name='converted.png')
+            # 변환된 파일 전송
+            return send_file(img_path, mimetype='image/png', as_attachment=True, download_name='converted.png')
 
     except Exception as e:
         print("❌ 변환 중 오류:", e)
-        return "변환 실패", 500
+        return f"서버 오류: {str(e)}", 500
 
     finally:
+        # 업로드된 원본 PDF 삭제
         try:
-            if os.path.exists(tmp_pdf_path):
-                os.remove(tmp_pdf_path)
-        except:
-            pass
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+        except Exception as e:
+            print(f"⚠️ PDF 삭제 실패: {e}")
 
 if __name__ == '__main__':
     app.run(debug=True)

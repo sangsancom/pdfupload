@@ -6,13 +6,11 @@ import tempfile
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
-
-# 업로드 폴더 생성 (없으면)
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 @app.route('/')
 def index():
-    return render_template('index.html')  # templates/index.html 필요
+    return render_template('index.html')
 
 @app.route('/convert', methods=['POST'])
 def convert_pdf_to_png():
@@ -28,32 +26,36 @@ def convert_pdf_to_png():
     pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(pdf_path)
 
+    # 이미지 임시 파일 생성 (삭제 예약하지 않음)
+    tmp_png = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+    img_path = tmp_png.name
+    tmp_png.close()  # Windows에서는 사용 중 에러 방지를 위해 반드시 닫아야 함
+
     try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # 출력 이미지 경로
-            img_path = os.path.join(tmpdir, 'converted.png')
+        # PDF → PNG 변환
+        doc = fitz.open(pdf_path)
+        page = doc.load_page(0)
+        pix = page.get_pixmap(dpi=150)
+        pix.save(img_path)
+        doc.close()
 
-            # PDF → PNG 변환 (첫 페이지)
-            doc = fitz.open(pdf_path)
-            page = doc.load_page(0)
-            pix = page.get_pixmap(dpi=150)
-            pix.save(img_path)
-            doc.close()
-
-            # 변환된 파일 전송
-            return send_file(img_path, mimetype='image/png', as_attachment=True, download_name='converted.png')
+        # 변환된 이미지 전송
+        return send_file(img_path, mimetype='image/png', as_attachment=True, download_name='converted.png')
 
     except Exception as e:
         print("❌ 변환 중 오류:", e)
         return f"서버 오류: {str(e)}", 500
 
     finally:
-        # 업로드된 원본 PDF 삭제
+        # PDF 삭제
         try:
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
         except Exception as e:
             print(f"⚠️ PDF 삭제 실패: {e}")
+        
+        # PNG 삭제는 요청 후 일정 지연시간 뒤 별도로 하는 것이 안전하지만
+        # 여기선 테스트용이므로 안 지움. 실제 서비스에선 비동기로 지워야 안전
 
 if __name__ == '__main__':
     app.run(debug=True)

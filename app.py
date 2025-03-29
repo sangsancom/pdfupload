@@ -1,52 +1,52 @@
 from flask import Flask, request, send_file, render_template
-from werkzeug.utils import secure_filename
-import os
 import fitz  # PyMuPDF
+import os
 import tempfile
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
-
-# 업로드 폴더 없으면 생성
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/convert', methods=['POST'])
-def convert_pdf_to_png():
+def convert():
     if 'pdfFile' not in request.files:
-        return "No file part", 400
+        return "No file uploaded", 400
 
     file = request.files['pdfFile']
     if file.filename == '':
-        return "No selected file", 400
-
-    # 업로드된 파일 저장
-    filename = secure_filename(file.filename)
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(filepath)
+        return "Empty filename", 400
 
     try:
-        # 임시 디렉토리 사용 (자동 정리)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            img_path = os.path.join(tmpdir, 'output.png')
+        # 임시 PDF 저장
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_pdf:
+            file.save(tmp_pdf)
+            tmp_pdf_path = tmp_pdf.name
 
-            # PDF 열기 및 첫 페이지 PNG로 저장
-            doc = fitz.open(filepath)
-            page = doc.load_page(0)
-            pix = page.get_pixmap(dpi=150)
-            pix.save(img_path)
-            doc.close()
+        # 임시 PNG 저장
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_png:
+            tmp_png_path = tmp_png.name
 
-            # 파일 전송 (파일 사용 완료되면 자동 삭제됨)
-            return send_file(img_path, mimetype='image/png', as_attachment=True, download_name='converted.png')
+        # PDF → PNG 변환
+        doc = fitz.open(tmp_pdf_path)
+        page = doc.load_page(0)
+        pix = page.get_pixmap(dpi=150)
+        pix.save(tmp_png_path)
+        doc.close()
+
+        return send_file(tmp_png_path, mimetype='image/png', as_attachment=True, download_name='converted.png')
+
+    except Exception as e:
+        print("❌ 변환 중 오류:", e)
+        return "변환 실패", 500
 
     finally:
-        # 업로드된 PDF 삭제
         try:
-            if os.path.exists(filepath):
-                os.remove(filepath)
-        except Exception as e:
-            print(f"PDF 삭제 실패: {e}")
+            if os.path.exists(tmp_pdf_path):
+                os.remove(tmp_pdf_path)
+        except:
+            pass
+
+if __name__ == '__main__':
+    app.run(debug=True)

@@ -1,0 +1,62 @@
+/* Reset 기본값 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* 바탕 */
+body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: linear-gradient(135deg, #e0f5e9, #d0f0d0);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 전체 박스 */
+.container {
+    width: 100%;
+    max-width: 460px;
+    background-color: #ffffff;
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 10px 25px rgba(0, 128, 0, 0.1);
+    text-align: center;
+    transition: 0.3s ease;
+}
+
+/* 제목 */
+h1 {
+    font-size: 24px;
+    margin-bottom: 30px;
+    color: #2e7d32;
+}
+
+/* 파일 업로드 필드 */
+input[type="file"] {
+    display: block;
+    margin: 0 auto 20px auto;
+    font-size: 14px;
+}
+
+/* 기본 버튼 스타일 */
+button {
+    background: linear-gradient(135deg, #66bb6a, #43a047);
+    color: #fff;
+    padding: 12px 28px;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+button:hover {
+    background: linear-gradient(135deg, #5aa05a, #388e3c);
+}
+
+/* 다운로드 섹*

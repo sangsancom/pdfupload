@@ -1,7 +1,7 @@
 from flask import Flask, request, send_file, render_template
 from werkzeug.utils import secure_filename
 import os
-from pdf2image import convert_from_path
+import fitz  # PyMuPDF
 import tempfile
 
 app = Flask(__name__)
@@ -28,17 +28,17 @@ def convert_pdf_to_png():
     file.save(filepath)
 
     try:
-        # PDF → 이미지 변환 (첫 페이지만 변환)
-        images = convert_from_path(filepath)
-        if not images:
-            return "No images found in PDF", 400
+        # PDF → 이미지 변환 (첫 페이지만 PNG로 저장)
+        doc = fitz.open(filepath)
+        page = doc.load_page(0)  # 첫 페이지
+        pix = page.get_pixmap(dpi=150)  # 해상도 설정
 
-        # 임시 파일로 PNG 저장
+        # 임시 PNG 파일 생성
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            images[0].save(tmp.name, 'PNG')
+            pix.save(tmp.name)
             return send_file(tmp.name, mimetype='image/png', as_attachment=True, download_name='converted.png')
     finally:
-        # 임시 파일 정리
+        # 원본 PDF 정리
         os.remove(filepath)
 
 if __name__ == '__main__':
